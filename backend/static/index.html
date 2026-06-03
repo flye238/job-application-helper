@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Job Application Helper</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #0f1117;
+      color: #e0e0e0;
+      min-height: 100vh;
+      padding: 2rem;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      color: #ffffff;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #888;
+      margin-bottom: 2rem;
+      font-size: 0.95rem;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+
+    textarea {
+      width: 100%;
+      height: 200px;
+      padding: 1rem;
+      border-radius: 8px;
+      border: 1px solid #333;
+      background: #1a1d27;
+      color: #e0e0e0;
+      font-size: 0.95rem;
+      resize: vertical;
+      outline: none;
+      transition: border 0.2s;
+    }
+
+    textarea:focus { border-color: #4f8ef7; }
+
+    button {
+      display: block;
+      width: 100%;
+      margin-top: 1rem;
+      padding: 0.85rem;
+      border-radius: 8px;
+      border: none;
+      background: #4f8ef7;
+      color: white;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover { background: #3a7be0; }
+    button:disabled { background: #333; cursor: not-allowed; }
+
+    .spinner {
+      display: none;
+      text-align: center;
+      margin-top: 1.5rem;
+      color: #888;
+      font-size: 0.9rem;
+    }
+
+    .results { margin-top: 2rem; }
+
+    .card {
+      background: #1a1d27;
+      border: 1px solid #2a2d3a;
+      border-radius: 10px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+    }
+
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #4f8ef7;
+      margin-bottom: 1rem;
+    }
+
+    .card pre {
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      font-family: inherit;
+      font-size: 0.92rem;
+      line-height: 1.7;
+      color: #d0d0d0;
+    }
+
+    .error {
+      background: #2a1a1a;
+      border: 1px solid #7f2a2a;
+      border-radius: 8px;
+      padding: 1rem;
+      margin-top: 1rem;
+      color: #f87171;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🎯 Job Application Helper</h1>
+    <p class="subtitle">Paste a job description and get a cover letter, interview prep, and skills gap analysis — instantly.</p>
+
+    <textarea id="jobDesc" placeholder="Paste the full job description here..."></textarea>
+    <button id="analyzeBtn" onclick="analyze()">Analyze Job Description</button>
+
+    <div class="spinner" id="spinner">⏳ Analyzing with GPT-4o... this may take 15–30 seconds.</div>
+
+    <div class="results" id="results"></div>
+  </div>
+
+  <script>
+    async function analyze() {
+      const jobDesc = document.getElementById('jobDesc').value.trim();
+      const btn = document.getElementById('analyzeBtn');
+      const spinner = document.getElementById('spinner');
+      const results = document.getElementById('results');
+
+      if (!jobDesc || jobDesc.length < 50) {
+        results.innerHTML = '<div class="error">Please enter a more detailed job description (at least 50 characters).</div>';
+        return;
+      }
+
+      btn.disabled = true;
+      spinner.style.display = 'block';
+      results.innerHTML = '';
+
+      try {
+        const response = await fetch('/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ job_description: jobDesc })
+        });
+
+        if (!response.ok) {
+          const err = await response.json();
+          throw new Error(err.detail || 'An error occurred.');
+        }
+
+        const data = await response.json();
+
+        results.innerHTML = `
+          <div class="card">
+            <h2>📝 Cover Letter</h2>
+            <pre>${escapeHtml(data.cover_letter)}</pre>
+          </div>
+          <div class="card">
+            <h2>🎤 Interview Questions</h2>
+            <pre>${escapeHtml(data.interview_questions)}</pre>
+          </div>
+          <div class="card">
+            <h2>📊 Skills Gap Analysis</h2>
+            <pre>${escapeHtml(data.skills_gap_analysis)}</pre>
+          </div>
+        `;
+      } catch (err) {
+        results.innerHTML = `<div class="error">Error: ${err.message}</div>`;
+      } finally {
+        btn.disabled = false;
+        spinner.style.display = 'none';
+      }
+    }
+
+    function escapeHtml(text) {
+      return text
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+  </script>
+</body>
+</html>

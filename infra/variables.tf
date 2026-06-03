@@ -16,6 +16,12 @@ variable "openai_model" {
   default     = "gpt-4o"
 }
 
+variable "github_sp_object_id" {
+  description = "Object ID of the GitHub Actions service principal. Required for ACR push access."
+  type        = string
+  default     = "589f0ba6-c27f-4752-81a4-202ea77d0ad9"
+}
+
 variable "tags" {
   type = map(string)
   default = {

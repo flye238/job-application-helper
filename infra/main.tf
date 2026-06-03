@@ -1,5 +1,5 @@
 # ==============================================================================
-# Job Application Helper - Azure Infrastructure
+# Job Application Helper - Azure Container Apps Infrastructure
 # ==============================================================================
 
 terraform {
@@ -57,8 +57,8 @@ resource "azurerm_key_vault" "main" {
   soft_delete_retention_days = 7
 
   access_policy {
-    tenant_id = data.azurerm_client_config.current.tenant_id
-    object_id = data.azurerm_client_config.current.object_id
+    tenant_id          = data.azurerm_client_config.current.tenant_id
+    object_id          = data.azurerm_client_config.current.object_id
     secret_permissions = ["Get", "List", "Set", "Delete", "Purge", "Recover"]
   }
 
@@ -66,101 +66,104 @@ resource "azurerm_key_vault" "main" {
 }
 
 # ------------------------------------------------------------------------------
-# Storage Account
+# Azure Container Registry (ACR)
 # ------------------------------------------------------------------------------
 
-resource "azurerm_storage_account" "functions" {
-  name                     = "${var.prefix}sa${random_string.suffix.result}"
-  resource_group_name      = azurerm_resource_group.main.name
-  location                 = azurerm_resource_group.main.location
-  account_tier             = "Standard"
-  account_replication_type = "LRS"
-  #tags                     = var.tags
-}
-
-# ------------------------------------------------------------------------------
-# App Service Plan
-# ------------------------------------------------------------------------------
-
-resource "azurerm_service_plan" "main" {
-  name                = "${var.prefix}-asp-${random_string.suffix.result}"
+resource "azurerm_container_registry" "main" {
+  name                = "${var.prefix}acr${random_string.suffix.result}"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
-  os_type             = "Linux"
-  sku_name            = "B1"
+  sku                 = "Basic"
+  admin_enabled       = true
   #tags                = var.tags
 }
 
 # ------------------------------------------------------------------------------
-# Azure Function App
+# Log Analytics Workspace (required by Container Apps)
 # ------------------------------------------------------------------------------
 
-resource "azurerm_linux_function_app" "backend" {
-  name                       = "${var.prefix}-func-${random_string.suffix.result}"
-  resource_group_name        = azurerm_resource_group.main.name
+resource "azurerm_log_analytics_workspace" "main" {
+  name                = "${var.prefix}-law-${random_string.suffix.result}"
+  location            = azurerm_resource_group.main.location
+  resource_group_name = azurerm_resource_group.main.name
+  sku                 = "PerGB2018"
+  retention_in_days   = 30
+  #tags                = var.tags
+}
+
+# ------------------------------------------------------------------------------
+# Container Apps Environment
+# ------------------------------------------------------------------------------
+
+resource "azurerm_container_app_environment" "main" {
+  name                       = "${var.prefix}-cae-${random_string.suffix.result}"
   location                   = azurerm_resource_group.main.location
-  service_plan_id            = azurerm_service_plan.main.id
-  storage_account_name       = azurerm_storage_account.functions.name
-  storage_account_access_key = azurerm_storage_account.functions.primary_access_key
+  resource_group_name        = azurerm_resource_group.main.name
+  log_analytics_workspace_id = azurerm_log_analytics_workspace.main.id
+  #tags                       = var.tags
+}
+
+# ------------------------------------------------------------------------------
+# Container App
+# Uses a placeholder image initially. GitHub Actions replaces it after push.
+# ------------------------------------------------------------------------------
+
+resource "azurerm_container_app" "main" {
+  name                         = "${var.prefix}-app-${random_string.suffix.result}"
+  container_app_environment_id = azurerm_container_app_environment.main.id
+  resource_group_name          = azurerm_resource_group.main.name
+  revision_mode                = "Single"
 
   identity {
     type = "SystemAssigned"
   }
 
-  site_config {
-    application_stack {
-      python_version = "3.11"
-    }
-    cors {
-      allowed_origins = [
-        "https://${var.prefix}-web-${random_string.suffix.result}.azurewebsites.net",
-        "http://localhost:3000",
-        "http://localhost:5500"
-      ]
+  template {
+    min_replicas = 0
+    max_replicas = 1
+
+    container {
+      name   = "job-assistant"
+      image  = "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest"
+      cpu    = 0.5
+      memory = "1Gi"
+
+      env {
+        name  = "KEY_VAULT_URI"
+        value = azurerm_key_vault.main.vault_uri
+      }
+
+      env {
+        name  = "OPENAI_MODEL"
+        value = var.openai_model
+      }
     }
   }
 
-  app_settings = {
-    FUNCTIONS_WORKER_RUNTIME       = "python"
-    AzureWebJobsFeatureFlags       = "EnableWorkerIndexing"
-    KEY_VAULT_URI                  = azurerm_key_vault.main.vault_uri
-    OPENAI_MODEL                   = var.openai_model
-    SCM_DO_BUILD_DURING_DEPLOYMENT = "false"
-    WEBSITE_RUN_FROM_PACKAGE       = "1"
+  ingress {
+    external_enabled = true
+    target_port      = 80
+    traffic_weight {
+      percentage      = 100
+      latest_revision = true
+    }
   }
 
   #tags = var.tags
 }
 
-# Grant Function App read access to Key Vault
-resource "azurerm_key_vault_access_policy" "function_app" {
-  key_vault_id = azurerm_key_vault.main.id
-  tenant_id    = data.azurerm_client_config.current.tenant_id
-  object_id    = azurerm_linux_function_app.backend.identity[0].principal_id
+# Grant Container App Managed Identity access to Key Vault
+resource "azurerm_key_vault_access_policy" "container_app" {
+  key_vault_id       = azurerm_key_vault.main.id
+  tenant_id          = data.azurerm_client_config.current.tenant_id
+  object_id          = azurerm_container_app.main.identity[0].principal_id
   secret_permissions = ["Get", "List"]
-  depends_on   = [azurerm_linux_function_app.backend]
+  depends_on         = [azurerm_container_app.main]
 }
 
-# ------------------------------------------------------------------------------
-# Azure Web App (Frontend)
-# ------------------------------------------------------------------------------
-
-resource "azurerm_linux_web_app" "frontend" {
-  name                = "${var.prefix}-web-${random_string.suffix.result}"
-  resource_group_name = azurerm_resource_group.main.name
-  location            = azurerm_resource_group.main.location
-  service_plan_id     = azurerm_service_plan.main.id
-
-  site_config {
-    application_stack {
-      node_version = "18-lts"
-    }
-    always_on = true
-  }
-
-  app_settings = {
-    FUNCTION_APP_URL = "https://${azurerm_linux_function_app.backend.default_hostname}"
-  }
-
-  #tags = var.tags
+# Grant GitHub Actions service principal push access to ACR
+resource "azurerm_role_assignment" "github_acr_push" {
+  scope                = azurerm_container_registry.main.id
+  role_definition_name = "AcrPush"
+  principal_id         = var.github_sp_object_id
 }

@@ -11,7 +11,6 @@ __pycache__/
 *.py[cod]
 .env
 .venv/
-backend/.python_packages/
 
 # VS Code
 .vscode/
@@ -19,6 +18,3 @@ backend/.python_packages/
 # OS
 .DS_Store
 Thumbs.db
-
-# Azure Functions local settings
-backend/local.settings.json

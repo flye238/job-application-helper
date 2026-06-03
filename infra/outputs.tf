@@ -2,16 +2,20 @@ output "resource_group_name" {
   value = azurerm_resource_group.main.name
 }
 
-output "function_app_name" {
-  value = azurerm_linux_function_app.backend.name
+output "acr_login_server" {
+  value = azurerm_container_registry.main.login_server
 }
 
-output "function_app_url" {
-  value = "https://${azurerm_linux_function_app.backend.default_hostname}"
+output "acr_name" {
+  value = azurerm_container_registry.main.name
 }
 
-output "frontend_url" {
-  value = "https://${azurerm_linux_web_app.frontend.default_hostname}"
+output "container_app_name" {
+  value = azurerm_container_app.main.name
+}
+
+output "container_app_url" {
+  value = "https://${azurerm_container_app.main.ingress[0].fqdn}"
 }
 
 output "key_vault_name" {
@@ -19,8 +23,7 @@ output "key_vault_name" {
 }
 
 output "resource_suffix" {
-  description = "Random suffix used in resource names. Save this for GitHub secrets."
-  value       = random_string.suffix.result
+  value = random_string.suffix.result
 }
 
 output "next_step" {
