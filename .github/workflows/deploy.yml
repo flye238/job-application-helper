@@ -42,5 +42,4 @@ jobs:
           az containerapp update \
             --name jobasst-app-${{ secrets.RESOURCE_SUFFIX }} \
             --resource-group jobasst-rg-${{ secrets.RESOURCE_SUFFIX }} \
-            --image ${{ env.IMAGE_TAG }} \
-            --target-port 8000
+            --image ${{ env.IMAGE_TAG }}
