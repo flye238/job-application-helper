@@ -37,8 +37,20 @@ jobs:
           docker push $IMAGE_TAG
           echo "IMAGE_TAG=$IMAGE_TAG" >> $GITHUB_ENV
 
+      - name: Get ACR credentials
+        run: |
+          ACR_PASSWORD=$(az acr credential show --name jobasstacrojzb01 --query passwords[0].value -o tsv)
+          echo "ACR_PASSWORD=$ACR_PASSWORD" >> $GITHUB_ENV
+
       - name: Update Container App with new image
         run: |
+          az containerapp registry set \
+            --name jobasst-app-${{ secrets.RESOURCE_SUFFIX }} \
+            --resource-group jobasst-rg-${{ secrets.RESOURCE_SUFFIX }} \
+            --server jobasstacrojzb01.azurecr.io \
+            --username jobasstacrojzb01 \
+            --password ${{ env.ACR_PASSWORD }}
+
           az containerapp update \
             --name jobasst-app-${{ secrets.RESOURCE_SUFFIX }} \
             --resource-group jobasst-rg-${{ secrets.RESOURCE_SUFFIX }} \
