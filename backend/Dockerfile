@@ -1,3 +1,7 @@
+# AI assistance: Claude was used to help generate/debug portions
+# of this implementation. All AI-generated suggestions were reviewed and modified
+# by the author.
+
 # ==============================================================================
 # Dockerfile - Job Application Helper
 # ==============================================================================
