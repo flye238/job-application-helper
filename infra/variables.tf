@@ -1,3 +1,7 @@
+# AI assistance: Claude was used to help generate/debug portions
+# of this implementation. All AI-generated suggestions were reviewed and modified
+# by the author.
+
 variable "prefix" {
   description = "Short prefix for all resource names. Lowercase, 3-8 chars."
   type        = string
